@@ -4,7 +4,7 @@ import {
   checkUnsupportedDataProxy,
   Command,
   format,
-  getSchemaPath,
+  getSchemaWithPath,
   HelpError,
   isError,
   loadEnvFile,
@@ -74,7 +74,7 @@ ${bold('Examples')}
       return this.help()
     }
 
-    loadEnvFile({ schemaPath: args['--schema'], printMessage: true })
+    await loadEnvFile({ schemaPath: args['--schema'], printMessage: true })
 
     const { schemaPath } = (await getSchemaPathAndPrint(args['--schema']))!
 
@@ -152,7 +152,7 @@ The following migration(s) have been applied:\n\n${printFilesFromMigrationIds('m
         }
       } else {
         // Only used to help users to set up their seeds from old way to new package.json config
-        const { schemaPath } = (await getSchemaPath(args['--schema']))!
+        const { schemaPath } = (await getSchemaWithPath(args['--schema']))!
         // we don't want to output the returned warning message
         // but we still want to run it for `legacyTsNodeScriptWarning()`
         await verifySeedConfigAndReturnMessage(schemaPath)

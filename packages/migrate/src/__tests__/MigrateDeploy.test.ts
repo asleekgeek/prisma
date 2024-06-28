@@ -28,8 +28,15 @@ describe('common', () => {
     ctx.fixture('empty')
     const result = MigrateDeploy.new().parse([])
     await expect(result).rejects.toThrowErrorMatchingInlineSnapshot(`
-      "Could not find a schema.prisma file that is required for this command.
-      You can either provide it with --schema, set it as \`prisma.schema\` in your package.json or put it into the default location ./prisma/schema.prisma https://pris.ly/d/prisma-schema-location"
+      "Could not find Prisma Schema that is required for this command.
+      You can either provide it with \`--schema\` argument, set it as \`prisma.schema\` in your package.json or put it into the default location.
+      Checked following paths:
+
+      schema.prisma: file not found
+      prisma/schema.prisma: file not found
+      prisma/schema: directory not found
+
+      See also https://pris.ly/d/prisma-schema-location"
     `)
   })
 })
@@ -85,6 +92,47 @@ describe('sqlite', () => {
       Applying migration \`20201231000000_init\`
 
       Prisma schema loaded from prisma/schema.prisma
+      Datasource "my_db": SQLite database "dev.db" at "file:dev.db"
+
+      1 migration found in prisma/migrations
+
+
+      "
+    `)
+    expect(ctx.mocked['console.log'].mock.calls).toMatchSnapshot()
+    expect(ctx.mocked['console.error'].mock.calls.join('\n')).toMatchSnapshot()
+  })
+
+  it('1 unapplied migration (folder)', async () => {
+    ctx.fixture('schema-folder-sqlite-migration-exists')
+    fs.remove('prisma/dev.db')
+
+    const result = MigrateDeploy.new().parse([])
+    await expect(result).resolves.toMatchInlineSnapshot(`
+      "The following migration(s) have been applied:
+
+      migrations/
+        └─ 20201231000000_init/
+          └─ migration.sql
+            
+      All migrations have been successfully applied."
+    `)
+
+    // Second time should do nothing (already applied)
+    const resultBis = MigrateDeploy.new().parse([])
+    await expect(resultBis).resolves.toMatchInlineSnapshot(`"No pending migrations to apply."`)
+
+    expect(captureStdout.getCapturedText().join('')).toMatchInlineSnapshot(`
+      "Prisma schema loaded from prisma/schema
+      Datasource "my_db": SQLite database "dev.db" at "file:dev.db"
+
+      SQLite database dev.db created at file:dev.db
+
+      1 migration found in prisma/migrations
+
+      Applying migration \`20201231000000_init\`
+
+      Prisma schema loaded from prisma/schema
       Datasource "my_db": SQLite database "dev.db" at "file:dev.db"
 
       1 migration found in prisma/migrations

@@ -125,8 +125,15 @@ describe('common', () => {
     ctx.fixture('empty')
     const result = MigrateDev.new().parse([])
     await expect(result).rejects.toThrowErrorMatchingInlineSnapshot(`
-      "Could not find a schema.prisma file that is required for this command.
-      You can either provide it with --schema, set it as \`prisma.schema\` in your package.json or put it into the default location ./prisma/schema.prisma https://pris.ly/d/prisma-schema-location"
+      "Could not find Prisma Schema that is required for this command.
+      You can either provide it with \`--schema\` argument, set it as \`prisma.schema\` in your package.json or put it into the default location.
+      Checked following paths:
+
+      schema.prisma: file not found
+      prisma/schema.prisma: file not found
+      prisma/schema: directory not found
+
+      See also https://pris.ly/d/prisma-schema-location"
     `)
   })
   it('dev should error in unattended environment', async () => {
@@ -171,6 +178,32 @@ describe('sqlite', () => {
       Datasource "my_db": SQLite database "dev.db" at "file:dev.db"
 
       SQLite database dev.db created at file:dev.db
+
+      Applying migration \`20201231000000_first\`
+
+      The following migration(s) have been created and applied from new schema changes:
+
+      migrations/
+        └─ 20201231000000_first/
+          └─ migration.sql
+
+      Your database is now in sync with your schema.
+      "
+    `)
+  })
+
+  it('first migration (--name) (folder)', async () => {
+    ctx.fixture('schema-folder-sqlite')
+    const result = MigrateDev.new().parse(['--name=first'])
+
+    await expect(result).resolves.toMatchInlineSnapshot(`""`)
+    expect(fs.exists('prisma/migrations/migration_lock.toml')).toEqual('file')
+
+    expect(captureStdout.getCapturedText().join('')).toMatchInlineSnapshot(`
+      "Prisma schema loaded from prisma/schema
+      Datasource "my_db": SQLite database "dev.db" at "file:../dev.db"
+
+      SQLite database dev.db created at file:../dev.db
 
       Applying migration \`20201231000000_first\`
 

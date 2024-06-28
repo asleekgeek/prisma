@@ -5,7 +5,7 @@ import {
   getClientEngineType,
   getConfig,
   getEnvPaths,
-  getSchemaPath,
+  getSchemaWithPath,
   parseEnvValue,
   printConfigWarnings,
 } from '@prisma/internals'
@@ -27,7 +27,7 @@ export async function getTestClient(schemaDir?: string, printWarnings?: boolean)
   const callSite = path.dirname(require.main?.filename ?? '')
   const absSchemaDir = path.resolve(callSite, schemaDir ?? '')
 
-  const { schemaPath, schemas: datamodel } = (await getSchemaPath(undefined, { cwd: absSchemaDir }))!
+  const { schemaPath, schemas: datamodel } = (await getSchemaWithPath(undefined, { cwd: absSchemaDir }))!
 
   const config = await getConfig({ datamodel, ignoreEnvVarErrors: true })
   if (printWarnings) {
@@ -47,7 +47,7 @@ export async function getTestClient(schemaDir?: string, printWarnings?: boolean)
     previewFeatures,
   })
   const outputDir = absSchemaDir
-  const relativeEnvPaths = getEnvPaths(schemaPath, { cwd: absSchemaDir })
+  const relativeEnvPaths = await getEnvPaths(schemaPath, { cwd: absSchemaDir })
   const activeProvider = config.datasources[0].activeProvider
   const options: GetPrismaClientConfig = {
     runtimeDataModel: dmmfToRuntimeDataModel(document.datamodel),

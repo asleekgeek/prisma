@@ -1,7 +1,21 @@
 import Debug from '@prisma/debug'
 import { overwriteFile } from '@prisma/fetch-engine'
-import type { BinaryPaths, ConnectorType, DataSource, DMMF, GeneratorConfig } from '@prisma/generator-helper'
-import { assertNever, ClientEngineType, getClientEngineType, pathToPosix, setClassName } from '@prisma/internals'
+import type {
+  ActiveConnectorType,
+  BinaryPaths,
+  ConnectorType,
+  DataSource,
+  DMMF,
+  GeneratorConfig,
+} from '@prisma/generator-helper'
+import {
+  assertNever,
+  ClientEngineType,
+  EnvPaths,
+  getClientEngineType,
+  pathToPosix,
+  setClassName,
+} from '@prisma/internals'
 import { createHash } from 'crypto'
 import paths from 'env-paths'
 import { existsSync } from 'fs'
@@ -49,7 +63,8 @@ export interface GenerateClientOptions {
   copyRuntimeSourceMaps?: boolean
   engineVersion: string
   clientVersion: string
-  activeProvider: string
+  activeProvider: ActiveConnectorType
+  envPaths?: EnvPaths
   /** When --postinstall is passed via CLI */
   postinstall?: boolean
   /** When --no-engine is passed via CLI */
@@ -76,11 +91,13 @@ export async function buildClient({
   activeProvider,
   postinstall,
   copyEngine,
+  envPaths,
 }: O.Required<GenerateClientOptions, 'runtimeBase'>): Promise<BuildClientResult> {
   // we define the basic options for the client generation
   const clientEngineType = getClientEngineType(generator)
   const baseClientOptions: Omit<TSClientOptions, `runtimeName${'Js' | 'Ts'}`> = {
     dmmf: getPrismaClientDMMF(dmmf),
+    envPaths: envPaths ?? { rootEnvPath: null, schemaEnvPath: undefined },
     datasources,
     generator,
     binaryPaths,
@@ -200,15 +217,34 @@ export async function buildClient({
     // In short: A lot can be simplified, but can only happen in GA & P6.
     fileMap['default.js'] = JS(trampolineTsClient)
     fileMap['default.d.ts'] = TS(trampolineTsClient)
-    fileMap['wasm-worker-loader.js'] = `export default (await import('./query_engine_bg.wasm')).default`
-    fileMap['wasm-edge-light-loader.js'] = `export default (await import('./query_engine_bg.wasm?module')).default`
+    fileMap['wasm-worker-loader.js'] = `export default import('./query_engine_bg.wasm')`
+    fileMap['wasm-edge-light-loader.js'] = `export default import('./query_engine_bg.wasm?module')`
+
     pkgJson['browser'] = 'default.js' // also point to the trampoline client otherwise it is picked up by cfw
     pkgJson['imports'] = {
       // when `import('#wasm-engine-loader')` is called, it will be resolved to the correct file
       '#wasm-engine-loader': {
+        // Keys reference: https://runtime-keys.proposal.wintercg.org/#keys
+
+        /**
+         * Vercel Edge Functions / Next.js Middlewares
+         */
         'edge-light': './wasm-edge-light-loader.js',
+
+        /**
+         * Cloudflare Workers, Cloudflare Pages
+         */
         workerd: './wasm-worker-loader.js',
+
+        /**
+         * (Old) Cloudflare Workers
+         * @millsp It's a fallback, in case both other keys didn't work because we could be on a different edge platform. It's a hypothetical case rather than anything actually tested.
+         */
         worker: './wasm-worker-loader.js',
+
+        /**
+         * Fallback for every other JavaScript runtime
+         */
         default: './wasm-worker-loader.js',
       },
       // when `require('#main-entry-point')` is called, it will be resolved to the correct file
@@ -299,6 +335,7 @@ export async function generateClient(options: GenerateClientOptions): Promise<vo
     engineVersion,
     activeProvider,
     postinstall,
+    envPaths,
     copyEngine = true,
   } = options
 
@@ -320,6 +357,7 @@ export async function generateClient(options: GenerateClientOptions): Promise<vo
     postinstall,
     copyEngine,
     testMode,
+    envPaths,
   })
 
   const provider = datasources[0].provider
